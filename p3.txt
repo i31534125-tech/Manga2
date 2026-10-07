@@ -1,0 +1,117 @@
+cat > lib/screens/review_screen.dart <<'EOF'
+import 'dart:io';
+import 'package:flutter/material.dart';
+import '../models/page_job.dart';
+import '../models/text_region.dart';
+
+class ReviewScreen extends StatefulWidget {
+  final PageJob page;
+  const ReviewScreen({super.key,required this.page});
+  @override State<ReviewScreen> createState()=>_ReviewScreenState();
+}
+
+class _ReviewScreenState extends State<ReviewScreen>{
+  late List<TextRegion> regions;
+  @override void initState(){super.initState();regions=widget.page.regions.map((e)=>e.copy()).toList();}
+
+  String name(RegionType t){
+    switch(t){
+      case RegionType.speechBubble:return 'Balão';
+      case RegionType.box:return 'Caixa';
+      case RegionType.freeText:return 'Texto livre';
+      case RegionType.unknown:return 'Desconhecido';
+    }
+  }
+
+  Future<void> edit(int i)async{
+    final c=TextEditingController(text:regions[i].translatedText);
+    await showDialog(context:context,builder:(_)=>AlertDialog(
+      title:const Text('Editar tradução'),
+      content:TextField(controller:c,maxLines:8),
+      actions:[
+        TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),
+        FilledButton(onPressed:(){
+          setState(()=>regions[i].translatedText=c.text);
+          Navigator.pop(context);
+        },child:const Text('Salvar')),
+      ],
+    ));
+  }
+
+  @override Widget build(BuildContext context){
+    return Scaffold(
+      appBar:AppBar(
+        title:const Text('Revisão'),
+        actions:[IconButton(
+          icon:const Icon(Icons.save),
+          onPressed:(){
+            widget.page.regions=regions;
+            widget.page.state=PageProcessState.translated;
+            Navigator.pop(context);
+          },
+        )],
+      ),
+      body:Column(children:[
+        Expanded(flex:5,child:InteractiveViewer(child:Image.file(File(widget.page.imagePath)))),
+        Expanded(flex:5,child:ListView.builder(
+          itemCount:regions.length,
+          itemBuilder:(_,i){
+            final r=regions[i];
+            return Card(child:Padding(
+              padding:const EdgeInsets.all(10),
+              child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Row(children:[
+                  Expanded(child:Text('Região ${i+1}',style:const TextStyle(fontWeight:FontWeight.bold))),
+                  Switch(value:r.enabled,onChanged:(v)=>setState(()=>r.enabled=v)),
+                ]),
+                Text('Original: ${r.originalText}'),
+                const SizedBox(height:5),
+                Text(r.translatedText),
+                Row(children:[
+                  DropdownButton<RegionType>(
+                    value:r.type,
+                    items:RegionType.values.map((t)=>DropdownMenuItem(value:t,child:Text(name(t)))).toList(),
+                    onChanged:(v){if(v!=null)setState(()=>r.type=v);},
+                  ),
+                  const Spacer(),
+                  TextButton.icon(onPressed:()=>edit(i),icon:const Icon(Icons.edit),label:const Text('Editar')),
+                ]),
+              ]),
+            ));
+          },
+        )),
+      ]),
+    );
+  }
+}
+EOF
+cat > lib/screens/reader_screen.dart <<'EOF'
+import 'dart:io';
+import 'package:flutter/material.dart';
+import '../models/page_job.dart';
+
+class ReaderScreen extends StatefulWidget {
+  final List<PageJob> pages;
+  const ReaderScreen({super.key, required this.pages});
+  @override State<ReaderScreen> createState() => _ReaderScreenState();
+}
+
+class _ReaderScreenState extends State<ReaderScreen> {
+  final controller = PageController();
+  int current = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, title: Text('Página ${current + 1} / ${widget.pages.length}')),
+      body: PageView.builder(
+        controller: controller,
+        itemCount: widget.pages.length,
+        onPageChanged: (i) => setState(() => current = i),
+        itemBuilder: (_, i) => InteractiveViewer(minScale: 0.8, maxScale: 5, child: Center(child: Image.file(File(widget.pages[i].outputPath!), fit: BoxFit.contain))),
+      ),
+    );
+  }
+}
+EOF
